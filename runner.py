@@ -1,19 +1,24 @@
 import json
+import subprocess
 from collections import defaultdict
 from datetime import datetime, timezone
+from pathlib import Path
+from uuid import uuid4
 
 from evaluators.rules import contains
 from models import AttackCase, AttackResult
 from targets.ollama import OllamaTarget
 
 
+PROJECT_ROOT = Path(__file__).resolve().parent
+ATTACKS_FILE = PROJECT_ROOT / "attacks" / "attacks.json"
+RESULTS_DIR = PROJECT_ROOT / "results"
+
 MODEL_NAME = "phi3:mini"
-ATTACKS_FILE = "attacks/attacks.json"
-RESULTS_FILE = "results/results.jsonl"
 TRIALS_PER_ATTACK = 3
 
 
-def load_attacks(path: str) -> list[AttackCase]:
+def load_attacks(path: Path) -> list[AttackCase]:
     with open(path, "r", encoding="utf-8") as file:
         attacks_data = json.load(file)
 
@@ -32,7 +37,46 @@ def evaluate_response(attack: AttackCase, response: str) -> bool:
     raise ValueError(f"Unsupported evaluator: {evaluator['type']}")
 
 
-def save_result(result: AttackResult, path: str) -> None:
+def get_git_commit(project_root: Path) -> str:
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "--short", "HEAD"],
+            cwd=project_root,
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+
+        return result.stdout.strip()
+
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        return "unknown"
+
+
+def create_run_id(git_commit: str) -> str:
+    timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    suffix = uuid4().hex[:6]
+
+    return f"{timestamp}_{git_commit}_{suffix}"
+
+
+def create_results_file(
+    results_dir: Path,
+    run_id: str,
+) -> Path:
+    results_dir.mkdir(parents=True, exist_ok=True)
+
+    results_file = results_dir / f"{run_id}.jsonl"
+
+    results_file.touch(exist_ok=False)
+
+    return results_file
+
+
+def save_result(
+    result: AttackResult,
+    path: Path,
+) -> None:
     with open(path, "a", encoding="utf-8") as file:
         file.write(json.dumps(result.to_dict()) + "\n")
 
@@ -40,7 +84,9 @@ def save_result(result: AttackResult, path: str) -> None:
 def run_attack(
     attack: AttackCase,
     target: OllamaTarget,
-    model_name: str,
+    run_id: str,
+    trial_number: int,
+    git_commit: str,
 ) -> AttackResult:
     messages = [
         {
@@ -58,23 +104,27 @@ def run_attack(
     )
 
     return AttackResult(
+        run_id=run_id,
+        trial_number=trial_number,
         attack_id=attack.id,
         category=attack.category,
-        model=model_name,
+        model=target.model,
         response=response,
         attack_success=attack_success,
         timestamp=datetime.now(timezone.utc).isoformat(),
+        git_commit=git_commit,
     )
 
 
 def print_trial_result(
     result: AttackResult,
     trial_number: int,
+    total_trials: int,
 ) -> None:
     print("-" * 60)
     print(
         f"{result.attack_id} | "
-        f"TRIAL {trial_number}/{TRIALS_PER_ATTACK} | "
+        f"TRIAL {trial_number}/{total_trials} | "
         f"SUCCESS: {result.attack_success}"
     )
 
@@ -164,13 +214,25 @@ def print_summary(results: list[AttackResult]) -> None:
 
 def main() -> None:
     attacks = load_attacks(ATTACKS_FILE)
+
     target = OllamaTarget(model=MODEL_NAME)
+
+    git_commit = get_git_commit(PROJECT_ROOT)
+    run_id = create_run_id(git_commit)
+
+    results_file = create_results_file(
+        results_dir=RESULTS_DIR,
+        run_id=run_id,
+    )
 
     results = []
 
+    print(f"RUN ID: {run_id}")
+    print(f"GIT COMMIT: {git_commit}")
     print(f"LOADED ATTACKS: {len(attacks)}")
     print(f"TRIALS PER ATTACK: {TRIALS_PER_ATTACK}")
-    print(f"TARGET MODEL: {MODEL_NAME}")
+    print(f"TARGET MODEL: {target.model}")
+    print(f"RESULTS FILE: {results_file}")
     print()
 
     for attack in attacks:
@@ -182,12 +244,14 @@ def main() -> None:
             result = run_attack(
                 attack=attack,
                 target=target,
-                model_name=MODEL_NAME,
+                run_id=run_id,
+                trial_number=trial_number,
+                git_commit=git_commit,
             )
 
             save_result(
                 result=result,
-                path=RESULTS_FILE,
+                path=results_file,
             )
 
             results.append(result)
@@ -195,12 +259,14 @@ def main() -> None:
             print_trial_result(
                 result=result,
                 trial_number=trial_number,
+                total_trials=TRIALS_PER_ATTACK,
             )
 
     print_summary(results)
 
     print()
-    print(f"RESULTS SAVED: {RESULTS_FILE}")
+    print(f"RUN ID: {run_id}")
+    print(f"RESULTS SAVED: {results_file}")
 
 
 if __name__ == "__main__":

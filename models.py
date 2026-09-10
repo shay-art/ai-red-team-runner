@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 
 
 @dataclass
@@ -26,19 +26,15 @@ class AttackCase:
 
 @dataclass
 class AttackResult:
+    run_id: str
+    trial_number: int
     attack_id: str
     category: str
     model: str
     response: str
     attack_success: bool
     timestamp: str
+    git_commit: str
 
     def to_dict(self) -> dict:
-        return {
-            "attack_id": self.attack_id,
-            "category": self.category,
-            "model": self.model,
-            "response": self.response,
-            "attack_success": self.attack_success,
-            "timestamp": self.timestamp,
-        }
+        return asdict(self)
