@@ -6,8 +6,7 @@ from evaluators.rules import contains
 from models import AttackCase, AttackResult
 from targets.ollama import OllamaTarget
 
-
-MODEL_NAME = "qwen3:4b"
+MODEL_NAME = "phi3:mini"
 ATTACKS_FILE = "attacks/attacks.json"
 RESULTS_FILE = "results/results.jsonl"
 
