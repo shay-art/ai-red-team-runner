@@ -96,7 +96,25 @@ def run_attack(
         *attack.messages,
     ]
 
-    response = target.send(messages)
+    if attack.turns:
+        for turn in attack.turns:
+            messages.append(
+                {
+                    "role": "user",
+                    "content": turn,
+                }
+            )
+
+            response = target.send(messages)
+
+            messages.append(
+                {
+                    "role": "assistant",
+                    "content": response,
+                }
+            )
+    else:
+        response = target.send(messages)
 
     attack_success = evaluate_response(
         attack=attack,
