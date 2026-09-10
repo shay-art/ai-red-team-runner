@@ -6,9 +6,11 @@ from evaluators.rules import contains
 from models import AttackCase, AttackResult
 from targets.ollama import OllamaTarget
 
+
 MODEL_NAME = "phi3:mini"
 ATTACKS_FILE = "attacks/attacks.json"
 RESULTS_FILE = "results/results.jsonl"
+TRIALS_PER_ATTACK = 3
 
 
 def load_attacks(path: str) -> list[AttackCase]:
@@ -65,15 +67,16 @@ def run_attack(
     )
 
 
-def print_result(result: AttackResult) -> None:
-    print("=" * 60)
-    print("ATTACK ID:", result.attack_id)
-    print("CATEGORY:", result.category)
-    print("MODEL:", result.model)
-    print("MODEL RESPONSE:")
-    print(result.response)
-    print()
-    print("ATTACK SUCCESS:", result.attack_success)
+def print_trial_result(
+    result: AttackResult,
+    trial_number: int,
+) -> None:
+    print("-" * 60)
+    print(
+        f"{result.attack_id} | "
+        f"TRIAL {trial_number}/{TRIALS_PER_ATTACK} | "
+        f"SUCCESS: {result.attack_success}"
+    )
 
 
 def print_summary(results: list[AttackResult]) -> None:
@@ -86,11 +89,52 @@ def print_summary(results: list[AttackResult]) -> None:
     print("=" * 60)
     print("RUN SUMMARY")
     print("=" * 60)
-    print(f"Total attacks:      {total}")
+    print(f"Total executions:   {total}")
     print(f"Successful attacks: {successful}")
     print(f"Overall ASR:        {overall_asr:.1f}%")
 
-    category_stats = defaultdict(lambda: {"total": 0, "successful": 0})
+    attack_stats = defaultdict(
+        lambda: {
+            "category": "",
+            "total": 0,
+            "successful": 0,
+        }
+    )
+
+    for result in results:
+        stats = attack_stats[result.attack_id]
+
+        stats["category"] = result.category
+        stats["total"] += 1
+
+        if result.attack_success:
+            stats["successful"] += 1
+
+    print()
+    print("ASR BY ATTACK")
+
+    for attack_id, stats in sorted(attack_stats.items()):
+        attack_total = stats["total"]
+        attack_successful = stats["successful"]
+
+        attack_asr = (
+            attack_successful / attack_total * 100
+            if attack_total
+            else 0.0
+        )
+
+        print(
+            f"{attack_id:<20} "
+            f"{attack_successful}/{attack_total} "
+            f"({attack_asr:.1f}%)"
+        )
+
+    category_stats = defaultdict(
+        lambda: {
+            "total": 0,
+            "successful": 0,
+        }
+    )
 
     for result in results:
         category_stats[result.category]["total"] += 1
@@ -120,30 +164,38 @@ def print_summary(results: list[AttackResult]) -> None:
 
 def main() -> None:
     attacks = load_attacks(ATTACKS_FILE)
-
     target = OllamaTarget(model=MODEL_NAME)
 
     results = []
 
     print(f"LOADED ATTACKS: {len(attacks)}")
+    print(f"TRIALS PER ATTACK: {TRIALS_PER_ATTACK}")
     print(f"TARGET MODEL: {MODEL_NAME}")
     print()
 
     for attack in attacks:
-        result = run_attack(
-            attack=attack,
-            target=target,
-            model_name=MODEL_NAME,
-        )
+        print("=" * 60)
+        print(f"RUNNING: {attack.id}")
+        print(f"CATEGORY: {attack.category}")
 
-        save_result(
-            result=result,
-            path=RESULTS_FILE,
-        )
+        for trial_number in range(1, TRIALS_PER_ATTACK + 1):
+            result = run_attack(
+                attack=attack,
+                target=target,
+                model_name=MODEL_NAME,
+            )
 
-        results.append(result)
+            save_result(
+                result=result,
+                path=RESULTS_FILE,
+            )
 
-        print_result(result)
+            results.append(result)
+
+            print_trial_result(
+                result=result,
+                trial_number=trial_number,
+            )
 
     print_summary(results)
 
