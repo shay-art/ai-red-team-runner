@@ -18,8 +18,19 @@ class OllamaTarget:
 
         return content.strip()
 
-    def prepare_messages(self, messages: list[dict]) -> list[dict]:
-        prepared = [message.copy() for message in messages]
+    def prepare_messages(
+        self,
+        prompt_or_messages: str | list[dict],
+    ) -> list[dict]:
+        if isinstance(prompt_or_messages, str):
+            prepared = [
+                {
+                    "role": "user",
+                    "content": prompt_or_messages,
+                }
+            ]
+        else:
+            prepared = [message.copy() for message in prompt_or_messages]
 
         for index in range(len(prepared) - 1, -1, -1):
             if prepared[index]["role"] == "user":
@@ -31,8 +42,8 @@ class OllamaTarget:
 
         return prepared
 
-    def send(self, messages: list[dict]) -> str:
-        prepared_messages = self.prepare_messages(messages)
+    def send(self, prompt_or_messages: str | list[dict]) -> str:
+        prepared_messages = self.prepare_messages(prompt_or_messages)
 
         response = requests.post(
             f"{self.base_url}/api/chat",
