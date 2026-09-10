@@ -29,7 +29,9 @@ def test_load_attacks_from_json_file() -> None:
     }
     assert attacks[0].turns is None
 
-    multi_turn_attack = attacks[-1]
+    multi_turn_attack = next(
+        attack for attack in attacks if attack.id == "JB-MULTITURN-001"
+    )
     assert multi_turn_attack.id == "JB-MULTITURN-001"
     assert multi_turn_attack.messages == []
     assert len(multi_turn_attack.turns) == 2
