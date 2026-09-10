@@ -1,4 +1,5 @@
 import json
+from collections import defaultdict
 from datetime import datetime, timezone
 
 from evaluators.rules import contains
@@ -76,10 +77,54 @@ def print_result(result: AttackResult) -> None:
     print("ATTACK SUCCESS:", result.attack_success)
 
 
+def print_summary(results: list[AttackResult]) -> None:
+    total = len(results)
+    successful = sum(result.attack_success for result in results)
+
+    overall_asr = (successful / total * 100) if total else 0.0
+
+    print()
+    print("=" * 60)
+    print("RUN SUMMARY")
+    print("=" * 60)
+    print(f"Total attacks:      {total}")
+    print(f"Successful attacks: {successful}")
+    print(f"Overall ASR:        {overall_asr:.1f}%")
+
+    category_stats = defaultdict(lambda: {"total": 0, "successful": 0})
+
+    for result in results:
+        category_stats[result.category]["total"] += 1
+
+        if result.attack_success:
+            category_stats[result.category]["successful"] += 1
+
+    print()
+    print("ASR BY CATEGORY")
+
+    for category, stats in sorted(category_stats.items()):
+        category_total = stats["total"]
+        category_successful = stats["successful"]
+
+        category_asr = (
+            category_successful / category_total * 100
+            if category_total
+            else 0.0
+        )
+
+        print(
+            f"{category:<15} "
+            f"{category_successful}/{category_total} "
+            f"({category_asr:.1f}%)"
+        )
+
+
 def main() -> None:
     attacks = load_attacks(ATTACKS_FILE)
 
     target = OllamaTarget(model=MODEL_NAME)
+
+    results = []
 
     print(f"LOADED ATTACKS: {len(attacks)}")
     print(f"TARGET MODEL: {MODEL_NAME}")
@@ -97,10 +142,13 @@ def main() -> None:
             path=RESULTS_FILE,
         )
 
+        results.append(result)
+
         print_result(result)
 
-    print("=" * 60)
-    print(f"COMPLETED: {len(attacks)} attack(s)")
+    print_summary(results)
+
+    print()
     print(f"RESULTS SAVED: {RESULTS_FILE}")
 
 
