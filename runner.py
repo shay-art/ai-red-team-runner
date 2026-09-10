@@ -65,24 +65,8 @@ def run_attack(
     )
 
 
-def main() -> None:
-    attacks = load_attacks(ATTACKS_FILE)
-
-    attack = attacks[0]
-
-    target = OllamaTarget(model=MODEL_NAME)
-
-    result = run_attack(
-        attack=attack,
-        target=target,
-        model_name=MODEL_NAME,
-    )
-
-    save_result(
-        result=result,
-        path=RESULTS_FILE,
-    )
-
+def print_result(result: AttackResult) -> None:
+    print("=" * 60)
     print("ATTACK ID:", result.attack_id)
     print("CATEGORY:", result.category)
     print("MODEL:", result.model)
@@ -90,7 +74,34 @@ def main() -> None:
     print(result.response)
     print()
     print("ATTACK SUCCESS:", result.attack_success)
-    print(f"RESULT SAVED: {RESULTS_FILE}")
+
+
+def main() -> None:
+    attacks = load_attacks(ATTACKS_FILE)
+
+    target = OllamaTarget(model=MODEL_NAME)
+
+    print(f"LOADED ATTACKS: {len(attacks)}")
+    print(f"TARGET MODEL: {MODEL_NAME}")
+    print()
+
+    for attack in attacks:
+        result = run_attack(
+            attack=attack,
+            target=target,
+            model_name=MODEL_NAME,
+        )
+
+        save_result(
+            result=result,
+            path=RESULTS_FILE,
+        )
+
+        print_result(result)
+
+    print("=" * 60)
+    print(f"COMPLETED: {len(attacks)} attack(s)")
+    print(f"RESULTS SAVED: {RESULTS_FILE}")
 
 
 if __name__ == "__main__":
