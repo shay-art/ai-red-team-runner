@@ -3,3 +3,4 @@ __pycache__/
 *.pyc
 .DS_Store
 results/*.jsonl
+!results/20260917T103029Z_190813e_f8bdaa.jsonl
