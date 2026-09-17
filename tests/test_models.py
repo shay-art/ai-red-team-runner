@@ -24,4 +24,8 @@ def test_attack_result_serialization() -> None:
         "attack_success": False,
         "timestamp": "2026-09-10T12:00:00+00:00",
         "git_commit": "a09ac00",
+        "responses": None,
+        "git_commit_full": "unknown",
+        "git_dirty": None,
+        "dataset_hash": "unknown",
     }
